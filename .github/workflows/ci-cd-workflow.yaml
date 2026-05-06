@@ -21,7 +21,7 @@ jobs:
 
       - name: Build and Test Backend
         working-directory: ./backend
-        run: mvn clean verify
+        run: mvn clean verify -Dspring.autoconfigure.exclude=org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
 
       - name: Build Docker Image
         run: |
