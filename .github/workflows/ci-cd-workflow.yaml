@@ -1,0 +1,52 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build and Test Backend
+        working-directory: ./backend
+        run: mvn clean verify
+
+      - name: Build Docker Image
+        run: |
+          docker build -t docassignment-backend:latest ./backend
+
+  deploy:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start minikube
+        uses: medyagh/setup-minikube@master
+
+      - name: Build image inside minikube
+        run: |
+          export SHELL=/bin/bash
+          eval $(minikube -p minikube docker-env)
+          docker build -t docassignment-backend:latest ./backend
+          echo "Image built inside minikube"
+
+      - name: Deploy to Minikube
+        run: |
+          kubectl apply -f deployment.yaml
+          kubectl apply -f service.yaml
+          kubectl rollout status deployment/dataserver-backend
+          kubectl rollout status deployment/dataserver-postgres

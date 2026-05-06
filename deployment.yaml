@@ -1,0 +1,130 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dataserver-app-config
+data:
+  SPRING_DATASOURCE_URL: jdbc:postgresql://dataserver-db:5432/postgres
+  SPRING_DATASOURCE_USERNAME: postgres
+  POSTGRES_DB: postgres
+  POSTGRES_USER: postgres
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: dataserver-app-secrets
+type: Opaque
+stringData:
+  SPRING_DATASOURCE_PASSWORD: password
+  POSTGRES_PASSWORD: password
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dataserver-postgres-pvc
+spec:
+  storageClassName: standard
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dataserver-postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dataserver-postgres
+  template:
+    metadata:
+      labels:
+        app: dataserver-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: dataserver-app-config
+                  key: POSTGRES_DB
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: dataserver-app-config
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dataserver-app-secrets
+                  key: POSTGRES_PASSWORD
+          volumeMounts:
+            - name: postgres-storage
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            tcpSocket:
+              port: 5432
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 5432
+            initialDelaySeconds: 30
+            periodSeconds: 20
+      volumes:
+        - name: postgres-storage
+          persistentVolumeClaim:
+            claimName: dataserver-postgres-pvc
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dataserver-backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: dataserver-backend
+  template:
+    metadata:
+      labels:
+        app: dataserver-backend
+    spec:
+      containers:
+        - name: backend
+          image: docassignment-backend:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8080
+          env:
+            - name: SPRING_DATASOURCE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: dataserver-app-config
+                  key: SPRING_DATASOURCE_URL
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                configMapKeyRef:
+                  name: dataserver-app-config
+                  key: SPRING_DATASOURCE_USERNAME
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dataserver-app-secrets
+                  key: SPRING_DATASOURCE_PASSWORD
+          readinessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 45
+            periodSeconds: 20

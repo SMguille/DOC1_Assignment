@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: dataserver-db
+spec:
+  selector:
+    app: dataserver-postgres
+  ports:
+    - protocol: TCP
+      port: 5432
+      targetPort: 5432
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dataserver-backend-service
+spec:
+  selector:
+    app: dataserver-backend
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
+      nodePort: 30080
+  type: NodePort
